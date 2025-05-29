@@ -1,0 +1,49 @@
+function trackMeetAttendance() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Sheet1') || 
+                SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const calendar = CalendarApp.getDefaultCalendar();
+  const now = new Date();
+  
+  // Format dates for the entire day
+  const startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+  
+  // Get all calendar events with Google Meet links today
+  const events = calendar.getEvents(startTime, endTime).filter(event => {
+    return event.getDescription() && event.getDescription().includes('meet.google.com');
+  });
+  
+  // Track found events
+  if (events.length === 0) {
+    Logger.log('No Google Meet events found today.');
+    return;
+  }
+  
+  // Process each event
+  events.forEach(event => {
+    const guests = event.getGuestList();
+    const meetingTitle = event.getTitle();
+    const meetingTime = event.getStartTime();
+    
+    if (guests && guests.length > 0) {
+      guests.forEach(guest => {
+        const status = guest.getGuestStatus();
+        if (status === CalendarApp.GuestStatus.YES || status === CalendarApp.GuestStatus.MAYBE) {
+          sheet.appendRow([
+            Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+            Utilities.formatDate(meetingTime, Session.getScriptTimeZone(), 'HH:mm'),
+            guest.getName(),
+            guest.getEmail(),
+            Math.round((event.getEndTime() - event.getStartTime()) / (1000 * 60)), // Duration in minutes
+            meetingTitle,
+            'Invited'
+          ]);
+        }
+      });
+    }
+  });
+  
+  // Add timestamp for when this ran
+  sheet.getRange(sheet.getLastRow() + 1, 1).setValue('Last updated: ' + 
+    Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss'));
+}
